@@ -8,13 +8,13 @@ R1=10;
 r1=0.0335;
 g=9.81;
 den=I_p*(m_c+m_p)+m_c*m_p*l^2;
-A1=[0 1 0 0;0 -(I_p+m_p*l^2)*f1/den m_p^2*g*l^2/den 0;0 0 0 1;0 -m_p*l*f1/den m_p*g*l*(m_c+m_p)/den 0]
-B1=[0;(I_p+m_p*l^2)/den;0;m_p*l/den]*(2*kt/(R1*r1))
+A1=[0 1 0 0;0 -(I_p+m_p*l^2)*f1/den m_p^2*g*l^2/den 0;0 0 0 1;0 -m_p*l*f1/den m_p*g*l*(m_c+m_p)/den 0];
+B1=[0;(I_p+m_p*l^2)/den;0;m_p*l/den]*(2*kt/(R1*r1));
 %A=eye(4)
 %B=[1;1;1;1]
-C1=[1 0 0 0]
+C1=[1 0 0 0];
 %C1=eye(4)
-D=0
+D=0;
 %%
 R = 1e-4;
 RD = 0.1;  %Weight the slew rate - respect actuation bandwidths
@@ -23,16 +23,16 @@ Q = 10^8; %Single output
 Q1=[1 0 0 0;0 1 0 0;0 0 1000 0;0 0 0 1000]
 R1=1;
 N1=0;
-[K,S1,e] = lqr(A1,B1,Q1,R1,N1)
+[K,S1,e] = lqr(A1,B1,Q1,R1,N1);
 
 %%
-a=tf(ss(A1-B1*K,B1,C1,D))
-b=c2d(a,0.2,'zoh')
-c=minreal(ss(b))
+a=tf(ss(A1-B1*K,B1,C1,D));
+b=c2d(a,0.2,'zoh');
+c=minreal(ss(b));
 %%
-A=c.A
-B=c.B
-C=c.C
+A=c.A;
+B=c.B;
+C=c.C;
 %%
 N = 100;  %This is the horizon for MPC
 Qbar = [];
