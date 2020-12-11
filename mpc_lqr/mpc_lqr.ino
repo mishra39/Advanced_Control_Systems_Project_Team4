@@ -68,7 +68,6 @@ double posX[] = {0,0}; // Previous and current position values
 double posY[] = {0,0};
 double psi[] = {0,0};
 double omega[] = {0,0};
-double kmat[4][3]; // matrix of range-kutta coefficients
 const int n = 1; // index variable for accessing gyroFiltered[]
 double distance = 0; // distance moved by the Robot
 double linVel = 0; // linear Velocity 
@@ -93,10 +92,11 @@ double error, error_d, error_i, error_prev,u, pwm_pulse;
 /* LQR Controller Parameters*/
 //double Kpos = -1, Ktheta = 2500, KthetaDot = 10;
 //double Kpos =  -31.62, K_xdot = -145.97, Ktheta = 3310, KthetaDot = 325.4;
-double Kpos =  -31.62, K_xdot = -145.97, Ktheta = 2700, KthetaDot = 225.4;
+double Kpos =  -20, K_xdot = -45.97, Ktheta = 2500, KthetaDot = 105.4;
+//double Kpos =  -2000, K_xdot = -45.97, Ktheta = 2500, KthetaDot = 205.4;
 double pos_prev = 0; double pos_curr = 0;
 double elapsedTimeLQR, currentTimeLQR, previousTimeLQR, avg_ang_vel;
-double deadZoneMag = 0.00;
+double deadZoneMag = 68; // dead zone of the motor (PWM)
 static int loop_count = 0;
 double sin_val = 0;
 /*Good gains: Kp, Kd 2500-3000, 0
@@ -409,22 +409,15 @@ void calc_filt_ang()
   yaw = yaw + GyroZ*elapsedTime;
 
 // Complementary filter - combine acceleromter and gyro angle values
-  pitch = 0.90 * gyroAngleX + 0.10 * accAngleX;  
-  
-// Calculating position using Runge-Kutta
-
-  avg_ang_vel = (motor_left_ang_vel + motor_right_ang_vel) / 2;
-  if (!isinf(avg_ang_vel))
+  pitch = 0.90 * gyroAngleX + 0.10 * accAngleX;
+  if (!isinf(motor_left_ang_vel))
   {
-    linVel = avg_ang_vel*wheel_rad; // linear velocity of the Robot
-    distance += linVel*elapsedTime; 
+    linVel = motor_left_ang_vel*wheel_rad;
   }
-  
-  Serial.print("Filtered Angle (radians): ");
-  Serial.println(pitch);
-  Serial.print("Distance ");
-  Serial.println(distance);
-  Serial.println(linVel);
+
+  //avg_ang_vel = (motor_left_ang_vel + motor_right_ang_vel) / 2;
+  //linVel = avg_ang_vel*wheel_rad; // linear velocity of the Robot
+  distance += linVel*elapsedTime;
 }
 
 /* Function to implement PID Controller*/
@@ -460,30 +453,6 @@ double state[4] = {0.00, 0.00, 0.00, 0.00};
 double lqr_u = 0.00;
 double mpc_u = 0.00;
 
-double LQR_control()
-{
-  double freq = 0.96; // frequency in Hz
-  double sine_in = 0;//105*1.5*sin((millis()/1000) * freq);
-  calc_filt_ang();
-  u = Kpos*distance + K_xdot*linVel + Ktheta*(pitch) + KthetaDot*(gyroAngleX) + sine_in;
-  Serial.println(millis()/1000);
- /* if (isnan(distance) || isinf(distance)) {u = Ktheta*(setPoint-pitch) + KthetaDot*(0-gyroAngleX);}
-  else
-  {
-    u = Kpos*distance + Ktheta*(setPoint-pitch) + KthetaDot*(0-gyroAngleX);
-    Serial.print(distance);
-  }*/
-  
-  constrain(u,-255,255);
-  BTserial.print(distance);
-  BTserial.print(',');
-  BTserial.println(pitch);
-  return u;
-}
-
-
-
-
 /*
  The below code parses the data received from MATLAB
 */
@@ -496,22 +465,7 @@ byte maxChars = 12; // a shorter limit to make it easier to see what happens
 double data_MATLAB = 0.0;
 bool reset_check = true;
 float ref[4] = {0,0,0,0};
-void printState()
-{
-  BTserial.print("Pos: ");
-  BTserial.print(state[0]);
-  BTserial.print(", Vel: ");
-  BTserial.print(state[1]);
-  BTserial.print(", Pitch");
-  BTserial.print(state[2]);
-  BTserial.print(", Ang. Vel: ");
-  BTserial.print(state[3]);
-  BTserial.print(", LQR_u: ");
-  BTserial.print(lqr_u);
-  BTserial.print(", MPC_u: ");
-  BTserial.print(data_MATLAB);
-  BTserial.print("\n");
-}
+  
 float getdatafromMATLAB() 
 {
 
@@ -559,9 +513,87 @@ float getdatafromMATLAB()
     }
 }
 
+void printStateSerial()
+{
+  Serial.print("*Pos: ");
+  Serial.print(distance);
+  Serial.print(" Linear Vel: ");
+  Serial.print(linVel);
+  Serial.print(' ');
+  Serial.print(pitch);
+  Serial.print(' ');
+  Serial.print(gyroAngleX);
+  Serial.print(' ');
+  Serial.print(data_MATLAB);
+  Serial.print(" *");
+  Serial.print("\n");
+}
+void printState()
+{
+  BTserial.print("* ");
+  BTserial.print(distance);
+  BTserial.print(' ');
+  BTserial.print(linVel);
+  BTserial.print(' ');
+  BTserial.print(pitch);
+  BTserial.print(' ');
+  BTserial.print(gyroAngleX);
+  BTserial.print(' ');
+  BTserial.print(data_MATLAB);
+  BTserial.print(' ');
+  BTserial.print(u);
+  BTserial.print(" *");
+  BTserial.print("\n");
+}
+
 void mpc_control()
 {
-  
+  calc_filt_ang();
+  getdatafromMATLAB();
+  printState();
+  if ((data_MATLAB) > 12)
+  {
+    data_MATLAB = 12;
+  }
+  if (data_MATLAB < -12)
+  {
+    data_MATLAB = -12;
+  }   
+  mpc_u = (data_MATLAB)* (255 /12);   // convert Voltage to PWM
+}
+
+void LQR_control()
+{
+  double freq = 0.96; // frequency in Hz
+  double ref = 0.25;
+  double dTheta_coeff = 1.0;
+  calc_filt_ang();
+  double pitch_des =0; // desired pitch
+  if (data_MATLAB > 1.0)
+  {
+    pitch_des = 0.125;//0.025*data_MATLAB-0.02;
+    dTheta_coeff = 0.75;
+    //u = Kpos*(distance-ref) + K_xdot*linVel*0 + Ktheta*0.025*(pitch) + KthetaDot*0.025*(gyroAngleX);
+  }
+  u = Kpos*(distance-ref) + K_xdot*linVel*0 + Ktheta*(pitch - pitch_des) + KthetaDot*dTheta_coeff*(gyroAngleX);  
+  Serial.print("Desired Pitch: ");
+  Serial.println(pitch_des);
+  Serial.print("Actual Pitch: ");
+  Serial.println(pitch);
+ /* if (isnan(distance) || isinf(distance)) {u = Ktheta*(setPoint-pitch) + KthetaDot*(0-gyroAngleX);}
+  else
+  {
+    u = Kpos*distance + Ktheta*(setPoint-pitch) + KthetaDot*(0-gyroAngleX);
+    Serial.print(distance);
+  }*/
+  if ((u) > 255)
+  {
+    u = 255;
+  }
+  if (u < -255)
+  {
+    u = -255;
+  }
 }
 /*
 mainfunc() is the function that is called at your specified sampling rate. The default 
@@ -585,27 +617,37 @@ void mainfunc()
   //BTserial.println("Printing through Bluetooth");
   /***********************/
   //
-  //PID_calc();
- //LQR();
-  //lp_filter_test();
-  getdatafromMATLAB();
-  mpc_u = data_MATLAB * (255 /12);   // convert PWM to Voltage
-  Serial.print("MPC Input: ");
-  Serial.println(mpc_u);
-  double lqr_control = LQR_control();
-  double total_input = mpc_u + u;
+  double total_input = 0;
+  //printStateSerial();
+  mpc_control();
+  LQR_control();
+  
+/*  if (abs(mpc_u) > 5.5)
+  {
+    total_input = mpc_u + 0.85*u;
+  }
+  else
+  {
+    total_input = 1.25*mpc_u + u;
+  }*/
+  
+  /*if (data_MATLAB > 2.0 && abs(pitch) < 0.40)
+  {
+    total_input = mpc_u + u;
+  }
+  else
+  {
+    total_input = u;
+  }*/
+  total_input = mpc_u + u;
   SetLeftWheelSpeed(total_input);
   SetRightWheelSpeed(total_input);
-  Serial.print("LQR Input: ");
+  /*Serial.print("LQR Input: ");
   Serial.println(u);
+  Serial.print("MPC Input: ");
+  Serial.println(mpc_u);
   Serial.print("Total Input: ");
-  Serial.println(total_input);
-  BTserial.print("MPC Input: ");
-  BTserial.println(mpc_u);
-  BTserial.print("LQR Input: ");
-  BTserial.println(u);
-  BTserial.print("Total Input: ");
-  BTserial.println(total_input);
+  Serial.println(total_input);*/
 }
 
 void loop()

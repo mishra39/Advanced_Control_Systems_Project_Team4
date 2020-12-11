@@ -33,9 +33,12 @@ volatile long left_encoder_pos = 0;
 float num_of_encoder_counts_per_rev = 780.0;
 float thousand_by_num_of_encoder_counts_per_rev = 1000.0/num_of_encoder_counts_per_rev;
 
-/* IMU Callibration Variables */ 
-long gyroXCalli = 11377/131.0, gyroYCalli = -847/131.0, gyroZCalli = 168/131.0; // Obtained by callibrating gyroscope values
-long accelXCalli = 398/16384.0, accelYCalli = -175/16384.0, accelZCalli = 15827/16384.0; // Obtained by callibrating accelerometer values
+/* IMU Callibration Variables */
+long gyroXCalli = -422/131.0, gyroYCalli = -53/131.0, gyroZCalli = 310/131.0; // Obtained by callibrating gyroscope values
+long accelXCalli = -97/16384.0, accelYCalli = -57/16384.0, accelZCalli = (18196-16384)/16384.0; // Obtained by callibrating accelerometer values
+
+/*long gyroXCalli = 11377/131.0, gyroYCalli = -847/131.0, gyroZCalli = 168/131.0; // Obtained by callibrating gyroscope values
+long accelXCalli = 398/16384.0, accelYCalli = -175/16384.0, accelZCalli = 15827/16384.0; // Obtained by callibrating accelerometer values*/
 
 
 /* Motor PWM Input Values */
@@ -335,7 +338,7 @@ void callibrateAccelValues()
 /***************** Write your custom variables and functions below *********************/
 /***************************************************************************************/
 
-#define alpha 0.98
+#define alpha 0.90
 #define lpf 0.85
 #define lpf2 0.85
 #include <math.h>
@@ -375,7 +378,6 @@ void stateUpdate()
   filteredAng = alpha*gyroAng + (1-alpha)*(accAng);
   filteredAng = lpf*filteredAng + (1-lpf)*prevAng;
   filteredVel = lpf2*filteredVel + (1-lpf2)*prevFilteredVel;
-  
   prevAng = filteredAng;
   prevFilteredVel = filteredVel;
   
@@ -383,7 +385,9 @@ void stateUpdate()
   wheel_pos += wheel_vel*((currT-prevT)/1000);
 
   prevT = currT;
-
+  double gyroAngleX_prev = gyroAngleX;
+  double gyroAngleY_prev = gyroAngleY;  
+  gyroAngleX = (gyroAngleX_prev + GyroX * elapsedTime); // rad/s * s = rad
   // States
   state[0] = wheel_pos;
   state[1] = wheel_vel;
@@ -408,7 +412,7 @@ double rand_val = 0;
 // LQR Gains from MATLAB
 //const double K[4] = {-10, -67.8, 2254.7, 38.1};
 //const float K[4] = {-100, -136.226, 915.2956, 14.6294};
-const float K[4] = {0, 0, 6000, 100};
+const float K[4] = {-20,-45.97, 2500, 205};
 float ref[4] = {0, 0, 0, 0};
 
 double LQR_control()
@@ -429,6 +433,21 @@ double LQR_control()
 double control_total, lqr_control = 0;
 double data_MATLAB = 0.0;
 
+void printStateSerial()
+{
+  Serial.print("* ");
+  Serial.print(state[0]);
+  Serial.print(' ');
+  Serial.print(state[1]);
+  Serial.print(' ');
+  Serial.print(state[2]);
+  Serial.print(' ');
+  Serial.print(state[3]);
+  Serial.print(' ');
+  Serial.print(data_MATLAB);
+  Serial.print(" *");
+  Serial.print("\n");
+}
 void printState()
 {
   BTserial.print("* ");
@@ -527,6 +546,7 @@ void mainfunc()
   control_total = control + data_MATLAB*255/12;
   SetLeftWheelSpeed(control_total); 
   SetRightWheelSpeed(control_total);
+  printStateSerial();
 }
 
 void loop()
