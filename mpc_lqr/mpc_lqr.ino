@@ -92,13 +92,13 @@ double error, error_d, error_i, error_prev,u, pwm_pulse;
 /* LQR Controller Parameters*/
 //double Kpos = -1, Ktheta = 2500, KthetaDot = 10;
 //double Kpos =  -31.62, K_xdot = -145.97, Ktheta = 3310, KthetaDot = 325.4;
-double Kpos =  -20, K_xdot = -45.97, Ktheta = 2500, KthetaDot = 105.4;
 //double Kpos =  -2000, K_xdot = -45.97, Ktheta = 2500, KthetaDot = 205.4;
 double pos_prev = 0; double pos_curr = 0;
 double elapsedTimeLQR, currentTimeLQR, previousTimeLQR, avg_ang_vel;
 double deadZoneMag = 68; // dead zone of the motor (PWM)
 static int loop_count = 0;
 double sin_val = 0;
+double ref = 0.15;
 /*Good gains: Kp, Kd 2500-3000, 0
  * double Kpos = -1, Ktheta = 401, KthetaDot = 5;
 
@@ -464,7 +464,6 @@ byte maxChars = 12; // a shorter limit to make it easier to see what happens
                            //   if too many chars are entered
 double data_MATLAB = 0.0;
 bool reset_check = true;
-float ref[4] = {0,0,0,0};
   
 float getdatafromMATLAB() 
 {
@@ -562,20 +561,30 @@ void mpc_control()
   mpc_u = (data_MATLAB)* (255 /12);   // convert Voltage to PWM
 }
 
+double Kpos =  -20, K_xdot = -45.97, Ktheta = 2500, KthetaDot = 105.4;
 void LQR_control()
 {
   double freq = 0.96; // frequency in Hz
-  double ref = 0.25;
   double dTheta_coeff = 1.0;
   calc_filt_ang();
   double pitch_des =0; // desired pitch
-  if (data_MATLAB > 1.0)
+  double theta_coeff = 1.0;
+  double linVel_coeff  = 1.0;
+  
+  if (data_MATLAB > 2.5 && distance < ref && abs(linVel) <= 0.1)
   {
-    pitch_des = 0.125;//0.025*data_MATLAB-0.02;
-    dTheta_coeff = 0.75;
-    //u = Kpos*(distance-ref) + K_xdot*linVel*0 + Ktheta*0.025*(pitch) + KthetaDot*0.025*(gyroAngleX);
+    pitch_des = 0.09;//0.025*data_MATLAB-0.02;
+    dTheta_coeff = 0.65;
+    linVel_coeff  = 1.0;
+    if (abs(pitch) < 0.10)
+    {
+      pitch = 0.0;
+      theta_coeff = 0.20;  
+    }
+    //u = Kpos*(distance-ref) + K_xdot*linVel*0 + Ktheta*0.025*(pitch) + KthetaDot*0.25*(gyroAngleX);
   }
-  u = Kpos*(distance-ref) + K_xdot*linVel*0 + Ktheta*(pitch - pitch_des) + KthetaDot*dTheta_coeff*(gyroAngleX);  
+  
+  u = Kpos*(distance-ref) + K_xdot*linVel*linVel_coeff + Ktheta*(pitch-pitch_des) + KthetaDot*dTheta_coeff*(gyroAngleX);  
   Serial.print("Desired Pitch: ");
   Serial.println(pitch_des);
   Serial.print("Actual Pitch: ");
@@ -640,6 +649,10 @@ void mainfunc()
     total_input = u;
   }*/
   total_input = mpc_u + u;
+  if (distance > ref)
+  {
+    total_input = u;
+  }
   SetLeftWheelSpeed(total_input);
   SetRightWheelSpeed(total_input);
   /*Serial.print("LQR Input: ");
