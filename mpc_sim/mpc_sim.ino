@@ -91,8 +91,8 @@ void setup() {
    Uncomment the next two lines only once and store the callibration values in the 
    global variables defined for callibration
   */
-//  callibrateGyroValues();
-//  callibrateAccelValues();
+  callibrateGyroValues();
+  callibrateAccelValues();
 
   time = millis();
   startTime_left = millis();
@@ -537,16 +537,15 @@ void mainfunc()
   // Set reference and reset wheel_position for reference tracking
 
   stateUpdate();
-  printState();
   getdatafromMATLAB();
+  printState();
   
   double control = LQR_control();
-  //double pd_control = PD_control();
+
   lqr_control = control;
   control_total = control + data_MATLAB*255/12;
   SetLeftWheelSpeed(control_total); 
   SetRightWheelSpeed(control_total);
-  printStateSerial();
 }
 
 void loop()
