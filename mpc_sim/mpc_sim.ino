@@ -535,7 +535,7 @@ void mainfunc()
   getdatafromMATLAB();
   printState();
   // Update angle reference
-  ref[2] = 0.017*data_MATLAB -0.025;
+  ref[2] = 0.02*data_MATLAB -0.025;
   
   double control = LQR_control();
 
