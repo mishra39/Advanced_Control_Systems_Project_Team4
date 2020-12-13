@@ -34,12 +34,11 @@ float num_of_encoder_counts_per_rev = 780.0;
 float thousand_by_num_of_encoder_counts_per_rev = 1000.0/num_of_encoder_counts_per_rev;
 
 /* IMU Callibration Variables */
-long gyroXCalli = -422/131.0, gyroYCalli = -53/131.0, gyroZCalli = 310/131.0; // Obtained by callibrating gyroscope values
-long accelXCalli = -97/16384.0, accelYCalli = -57/16384.0, accelZCalli = (18196-16384)/16384.0; // Obtained by callibrating accelerometer values
+long gyroXCalli = 12287/131.0, gyroYCalli = -906/131.0, gyroZCalli = 31/131.0; // Obtained by callibrating gyroscope values
+long accelXCalli = 142/16384.0, accelYCalli = -975/16384.0, accelZCalli = 14913/16384.0; // Obtained by callibrating accelerometer values
 
 /*long gyroXCalli = 11377/131.0, gyroYCalli = -847/131.0, gyroZCalli = 168/131.0; // Obtained by callibrating gyroscope values
 long accelXCalli = 398/16384.0, accelYCalli = -175/16384.0, accelZCalli = 15827/16384.0; // Obtained by callibrating accelerometer values*/
-
 
 /* Motor PWM Input Values */
 long motor_left = 0;
@@ -91,8 +90,8 @@ void setup() {
    Uncomment the next two lines only once and store the callibration values in the 
    global variables defined for callibration
   */
-  callibrateGyroValues();
-  callibrateAccelValues();
+//  callibrateGyroValues();
+//  callibrateAccelValues();
 
   time = millis();
   startTime_left = millis();
@@ -124,8 +123,7 @@ void setup() {
 encoder_left() counts encoder pulses of the left wheel motor and stores it in a 
 global variable 'left_encoder'
 */
-void encoder_left(){left_encoder++;
-left_encoder_pos++;}
+void encoder_left(){left_encoder++;}
   
 /* 
 encoder_right() counts encoder pulses of the right wheel motor and stores it in a 
@@ -212,11 +210,7 @@ void readEncoder()
 
   motor_right_ang_vel = motor_left_ang_vel;
   
-//  motor_right_ang_vel = (float) 2 * 3.1415 * right_encoder * (float)thousand_by_num_of_encoder_counts_per_rev / (float)(time - startTime_right);  
-//  if (motor_right < 0){
-//    motor_right_ang_vel = -motor_right_ang_vel;}
-//  startTime_right = time;
-//  right_encoder = 0;  
+
 }
 
 /* 
@@ -338,9 +332,9 @@ void callibrateAccelValues()
 /***************** Write your custom variables and functions below *********************/
 /***************************************************************************************/
 
-#define alpha 0.90
-#define lpf 0.85
-#define lpf2 0.85
+#define alpha 0.98
+#define lpf 0.95
+#define lpf2 0.98
 #include <math.h>
 
 double gyroAng, accAng, filteredAng, prevAng = 0;
@@ -385,9 +379,9 @@ void stateUpdate()
   wheel_pos += wheel_vel*((currT-prevT)/1000);
 
   prevT = currT;
-  double gyroAngleX_prev = gyroAngleX;
-  double gyroAngleY_prev = gyroAngleY;  
-  gyroAngleX = (gyroAngleX_prev + GyroX * elapsedTime); // rad/s * s = rad
+//  double gyroAngleX_prev = gyroAngleX;
+//  double gyroAngleY_prev = gyroAngleY;  
+//  gyroAngleX = (gyroAngleX_prev + GyroX * elapsedTime); // rad/s * s = rad
   // States
   state[0] = wheel_pos;
   state[1] = wheel_vel;
@@ -411,9 +405,9 @@ double rand_val = 0;
 
 // LQR Gains from MATLAB
 //const double K[4] = {-10, -67.8, 2254.7, 38.1};
-//const float K[4] = {-100, -136.226, 915.2956, 14.6294};
-const float K[4] = {-20,-45.97, 2500, 205};
-float ref[4] = {0, 0, 0, 0};
+//const float K[4] = {-707.1, -625.1, 2718.9, 48.2};
+const float K[4] = {-3.2, -45.3, 3181.8, 103.4};
+float ref[4] = {0, 0, -0.025, 0};
 
 double LQR_control()
 {
@@ -424,6 +418,8 @@ double LQR_control()
   {
     out += K[i]*(state[i] - ref[i]);
   }
+  if(out > 255) out = 255;
+  else if(out < -255) out = -255;
   
   return (out);
   
@@ -488,7 +484,7 @@ float getdatafromMATLAB()
     if (BTserial.available() > 0) {
       if(reset_check)
       {
-        ref[0] = 0.25;
+        ref[0] = 0.15;
         wheel_pos = 0;
         reset_check = !reset_check;
       }
@@ -508,10 +504,9 @@ float getdatafromMATLAB()
       inputSeveral[ndx] = 0;
 
        // and then convert the string into a floating point number  
-      if(abs(atof(inputSeveral)) <= 1.00) int x=0;
-      
-      else data_MATLAB = atof(inputSeveral);
-     
+       data_MATLAB = atof(inputSeveral);
+       if(data_MATLAB > 12) data_MATLAB = 12;
+       else if(data_MATLAB < -12) data_MATLAB = -12;
     } 
 }
 /*
@@ -539,11 +534,14 @@ void mainfunc()
   stateUpdate();
   getdatafromMATLAB();
   printState();
+  // Update angle reference
+  ref[2] = 0.017*data_MATLAB -0.025;
   
   double control = LQR_control();
 
   lqr_control = control;
   control_total = control + data_MATLAB*255/12;
+  
   SetLeftWheelSpeed(control_total); 
   SetRightWheelSpeed(control_total);
 }
